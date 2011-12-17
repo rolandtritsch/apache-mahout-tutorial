@@ -1,0 +1,459 @@
+<project 
+    xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+			http://maven.apache.org/POM/4.0.0
+			http://maven.apache.org/xsd/maven-4.0.0.xsd
+			"
+>
+  <modelVersion>4.0.0</modelVersion>
+
+  <name>Apache Mahout Examples</name>
+  <description>
+    This is a Maven build of the (old) Apache Mahout Example 
+    published by Grant as part of his Mahout Tutorial (making 
+    recomendations on Wikipedia articles).
+  </description>
+  <url>http://www.ibm.com/developerworks/java/library/j-mahout</url>
+
+  <properties>
+    <wiki.dir>./wikipedia</wiki.dir>
+    <example.resources>${project.build.sourceDirectory}/../resources</example.resources>
+    <mahout.version>0.6-SNAPSHOT</mahout.version>
+  </properties>
+
+  <groupId>org.tritsch</groupId>
+  <artifactId>apache-mahout-tutorial</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.mahout</groupId>
+      <artifactId>mahout-core</artifactId>
+      <version>${mahout.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.mahout</groupId>
+      <artifactId>mahout-examples</artifactId>
+      <version>${mahout.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.mahout</groupId>
+      <artifactId>mahout-math</artifactId>
+      <version>${mahout.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.mahout</groupId>
+      <artifactId>mahout-integration</artifactId>
+      <version>${mahout.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.mahout</groupId>
+      <artifactId>mahout-buildtools</artifactId>
+      <version>${mahout.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.6.4</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>1.6.4</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions>
+	  <execution>
+	    <id>GenerateRatings</id>
+	    <phase>package</phase>
+	    <goals><goal>java</goal></goals>
+	    <configuration>
+	      <mainClass>cf.wikipedia.GenerateRatings</mainClass>
+	      <arguments>
+		<argument>${example.resources}/manual-ratings.txt</argument>
+		<argument>${project.build.directory}/recomendations.txt</argument>
+		<argument>${example.resources}/docIdsTitles.xml</argument>
+	      </arguments>
+	    </configuration>
+	  </execution>
+	</executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>DownloadData</id>
+      <activation><property><name>DownloadData</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+	<version>1.7</version>
+        <executions><execution>
+	  <id>DownloadData</id><goals><goal>run</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <target>
+	    <mkdir dir="${wiki.dir}"/>
+	    <get src="http://people.apache.org/~gsingers/wikipedia/enwiki-20070527-pages-articles.xml.bz2" 
+		 dest="${wiki.dir}/enwiki-20070527-pages-articles.xml.bz2"/>
+	    <bunzip2 src="${wiki.dir}/enwiki-20070527-pages-articles.xml.bz2" dest="${wiki.dir}"/>
+	    <get src="http://people.apache.org/~gsingers/wikipedia/n2.tar.gz" dest="${wiki.dir}/n2.tar.gz"/>
+            <mkdir dir="${wiki.dir}/tmp"/>
+	    <gunzip src="${wiki.dir}/n2.tar.gz" dest="${wiki.dir}/tmp/n2.tar"/>
+	    <untar src="${wiki.dir}/tmp/n2.tar" dest="${wiki.dir}/"/>
+	  </target>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>SplitXmlFile</id>
+      <activation><property><name>SplitXmlFile</name></property></activation>
+      <build>
+	<plugins>
+	  <plugin>
+	    <groupId>org.codehaus.mojo</groupId>
+	    <artifactId>exec-maven-plugin</artifactId>
+	    <version>1.2.1</version>
+	    <executions><execution>
+	      <id>SplitXmlFile - Run</id><goals><goal>java</goal></goals>
+	    </execution></executions>
+	    <configuration>
+	      <mainClass>org.apache.mahout.classifier.bayes.WikipediaXmlSplitter</mainClass>
+	      <arguments>
+		<argument>--dumpFile</argument>
+		<argument>${wiki.dir}/enwiki-20070527-pages-articles.xml</argument>
+		<argument>--outputDir</argument>
+		<argument>${project.build.directory}/chunks-all</argument>
+		<argument>--chunkSize</argument>
+		<argument>64</argument>
+		<argument>--numChunks</argument>
+		<argument>150</argument>
+	      </arguments>
+	    </configuration>
+	  </plugin>
+	  <plugin>
+	    <groupId>org.apache.maven.plugins</groupId>
+	    <artifactId>maven-antrun-plugin</artifactId>
+	    <version>1.7</version>
+	    <executions><execution>
+	      <id>SplitXmlFile - CopyFiles</id><goals><goal>run</goal></goals>
+	    </execution></executions>
+	    <configuration>
+              <target>
+		<mkdir dir="${project.build.directory}/chunks-classification"/>
+		<mkdir dir="${project.build.directory}/chunks-classification-test"/>
+		<copy todir="${project.build.directory}/chunks-classification">
+		  <fileset dir="${project.build.directory}/chunks-all">
+		    <include name="chunk-000*"/>
+		    <include name="chunk-001*"/>
+		    <include name="chunk-002*"/>
+		    <include name="chunk-003*"/>
+		  </fileset>
+		</copy>
+		<copy todir="${project.build.directory}/chunks-classification-test">
+		  <fileset dir="${project.build.directory}/chunks-all">
+		    <include name="chunk-0101.xml"/>
+		    <include name="chunk-0102.xml"/>
+		    <include name="chunk-0103.xml"/>
+		    <include name="chunk-0104.xml"/>
+		    <include name="chunk-0105.xml"/>
+		    <include name="chunk-0107.xml"/>
+		    <include name="chunk-0108.xml"/>
+		    <include name="chunk-0109.xml"/>
+		    <include name="chunk-0130.xml"/>
+		    <include name="chunk-0131.xml"/>
+		    <include name="chunk-0132.xml"/>
+		    <include name="chunk-0133.xml"/>
+		    <include name="chunk-0134.xml"/>
+		    <include name="chunk-0135.xml"/>
+		    <include name="chunk-0137.xml"/>
+		    <include name="chunk-0139.xml"/>
+		  </fileset>
+		</copy>
+              </target>
+	    </configuration>
+	  </plugin>
+	</plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <id>UserDemo</id>
+      <activation><property><name>UserDemo</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>UserDemo</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>cf.wikipedia.WikipediaTasteUserDemo</mainClass>
+	  <arguments>
+	    <argument>${project.build.directory}/recomendations.txt</argument>
+	    <argument>${example.resources}/docIdsTitles.xml</argument>
+	    <argument>5</argument>
+	    <argument>995</argument>
+	    <argument>true</argument>
+	  </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>ItemItemDemo</id>
+      <activation><property><name>ItemItemDemo</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>ItemItemDemo</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>cf.wikipedia.WikipediaTasteItemItemDemo</mainClass>
+	  <arguments>
+	    <argument>${project.build.directory}/recomendations.txt</argument>
+	    <argument>${example.resources}/docIdsTitles.xml</argument>
+	    <argument>995</argument>
+	  </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>ItemRecDemo</id>
+      <activation><property><name>ItemRecDemo</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>ItemRecDemo</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>cf.wikipedia.WikipediaTasteItemRecDemo</mainClass>
+	  <arguments>
+	    <argument>${project.build.directory}/recomendations.txt</argument>
+	    <argument>${example.resources}/docIdsTitles.xml</argument>
+	    <argument>3135415</argument>
+	    <argument>5</argument>
+	  </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>ItemSimilarityDemo</id>
+      <activation><property><name>ItemSimilarityDemo</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>ItemSimilarityDemo</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>cf.wikipedia.WikipediaTasteItemSimilarity</mainClass>
+	  <arguments>
+	    <argument>${project.build.directory}/recomendations.txt</argument>
+	    <argument>3135415</argument>
+	    <argument>2954818</argument>
+	  </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>KMeansDemo</id>
+      <activation><property><name>kMeansDemo</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>kMeansDemo</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>org.apache.mahout.clustering.kmeans.KMeansDriver</mainClass>
+	  <arguments>
+	    <argument>--maxIter</argument>
+	    <argument>1000</argument>
+	    <argument>--input</argument>
+	    <argument>${wiki.dir}/n2/part-full.txt</argument>
+            <argument>--clusters</argument>
+            <argument>${project.build.directory}/n2/k-output/clusters-in</argument>
+            <argument>--numClusters</argument>
+            <argument>10</argument>
+            <argument>--output</argument>
+            <argument>${project.build.directory}/n2/k-output</argument>
+            <argument>--distanceMeasure</argument>
+            <argument>org.apache.mahout.common.distance.CosineDistanceMeasure</argument>
+            <argument>--convergenceDelta</argument>
+            <argument>0.01</argument>
+            <argument>--overwrite</argument>
+          </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>PrepClassification4Train</id>
+      <activation><property><name>PrepClassification4Train</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>PrepClassification4Train</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>org.apache.mahout.classifier.bayes.WikipediaDatasetCreatorDriver</mainClass>
+	  <arguments>
+	    <argument>--input</argument>
+	    <argument>${project.build.directory}/chunks-classification</argument>
+	    <argument>--output</argument>
+	    <argument>${project.build.directory}/subjects/prepared</argument>
+            <argument>--categories</argument>
+            <argument>${example.resources}/subjects.txt</argument>
+          </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>PrepClassification4Test</id>
+      <activation><property><name>PrepClassification4Test</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>PrepClassification4Test</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>org.apache.mahout.classifier.bayes.WikipediaDatasetCreatorDriver</mainClass>
+	  <arguments>
+	    <argument>--input</argument>
+	    <argument>${project.build.directory}/chunks-classification-test</argument>
+	    <argument>--output</argument>
+	    <argument>${project.build.directory}/subjects/prepared-test</argument>
+            <argument>--categories</argument>
+            <argument>${example.resources}/subjects.txt</argument>
+          </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>TrainClassifier</id>
+      <activation><property><name>TrainClassifier</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>TrainClassifier</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>org.apache.mahout.classifier.bayes.TrainClassifier</mainClass>
+	  <arguments>
+	    <argument>--input</argument>
+	    <argument>${project.build.directory}/subjects/prepared</argument>
+	    <argument>--output</argument>
+	    <argument>${project.build.directory}/subjects/model</argument>
+            <argument>--gramSize</argument>
+            <argument>1</argument>
+            <argument>--classifierType</argument>
+            <argument>bayes</argument>
+          </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>TestClassifier</id>
+      <activation><property><name>TestClassifier</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>TestClassifier</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>org.apache.mahout.classifier.bayes.TestClassifier</mainClass>
+	  <arguments>
+	    <argument>--model</argument>
+	    <argument>${project.build.directory}/subjects/model</argument>
+	    <argument>--testDir</argument>
+	    <argument>${project.build.directory}/subjects/prepared-test</argument>
+            <argument>--gramSize</argument>
+            <argument>1</argument>
+            <argument>--classifierType</argument>
+            <argument>bayes</argument>
+          </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>TestClassifierVerbose</id>
+      <activation><property><name>TestClassifierVerbose</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>TestClassifierVerbose</id><goals><goal>java</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <mainClass>org.apache.mahout.classifier.bayes.TestClassifier</mainClass>
+	  <arguments>
+	    <argument>--model</argument>
+	    <argument>${project.build.directory}/subjects/model</argument>
+	    <argument>--testDir</argument>
+	    <argument>${project.build.directory}/subjects/prepared-test</argument>
+            <argument>--gramSize</argument>
+            <argument>1</argument>
+            <argument>--classifierType</argument>
+            <argument>bayes</argument>
+            <argument>--verbose</argument>
+          </arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+    <profile>
+      <id>TestIt</id>
+      <activation><property><name>TestIt</name></property></activation>
+      <build><plugins><plugin>
+	<groupId>org.codehaus.mojo</groupId>
+	<artifactId>exec-maven-plugin</artifactId>
+	<version>1.2.1</version>
+	<executions><execution>
+	  <id>TestIt</id><goals><goal>exec</goal></goals>
+	</execution></executions>
+	<configuration>
+	  <executable>echo</executable>
+	  <arguments><argument>${project.build.sourceDirectory}</argument></arguments>
+	</configuration>
+      </plugin></plugins></build>
+    </profile>
+   </profiles>
+
+   <repositories>
+     <repository>
+       <snapshots>
+	 <enabled>true</enabled>
+	 <updatePolicy>never</updatePolicy>
+	 <checksumPolicy>fail</checksumPolicy>
+       </snapshots>
+       <id>ApacheSnapshots</id>
+       <name>Apache Snapshots</name>
+       <url>http://repository.apache.org/snapshots</url>
+       <layout>default</layout>
+     </repository>
+   </repositories>
+</project>

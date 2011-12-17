@@ -1,0 +1,11 @@
+This is a "maven-ized" version of the Apache Mahout Tutorial originally published here ...
+
+http://www.ibm.com/developerworks/java/library/j-mahout
+
+To build it you need to install Maven 3 and run ...
+
+> ./buildAll.sh
+
+This will take a while (30-60 mins), because we need to download the test data.
+
+Enjoy - roland@tritsch.org (Dec 2011)
